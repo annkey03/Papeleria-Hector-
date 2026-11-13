@@ -35,10 +35,10 @@ def _estilo(fig: go.Figure, **kwargs) -> go.Figure:
 def demanda_vs_stock(plan: pd.DataFrame) -> go.Figure:
     """Barras horizontales: demanda esperada Q4 frente al stock objetivo."""
     datos = plan.sort_values("stock_objetivo").rename(
-        columns={"demanda_q4": "Demanda esperada Q4", "stock_objetivo": "Stock objetivo"}
+        columns={"demanda_q4": "Ventas esperadas", "stock_objetivo": "Stock recomendado"}
     )
     fig = px.bar(
-        datos, y="producto", x=["Demanda esperada Q4", "Stock objetivo"],
+        datos, y="producto", x=["Ventas esperadas", "Stock recomendado"],
         barmode="group", orientation="h",
         color_discrete_sequence=[COLOR_PRIMARIO, COLOR_SECUNDARIO],
         labels={"value": "Unidades", "variable": "", "producto": ""},
@@ -47,7 +47,7 @@ def demanda_vs_stock(plan: pd.DataFrame) -> go.Figure:
 
 
 def distribucion_inversion(plan: pd.DataFrame) -> go.Figure:
-    """Dona con el capital inmovilizado en inventario por producto."""
+    """Dona con el dinero invertido en inventario por producto."""
     fig = px.pie(
         plan, names="producto", values="inversion_inventario", hole=0.45,
         color_discrete_sequence=px.colors.qualitative.Bold,
@@ -89,14 +89,14 @@ def detalle_producto(historico: pd.DataFrame, fila: pd.Series) -> go.Figure:
     ))
     fig.add_trace(go.Bar(
         x=PERIODOS_PRONOSTICO, y=[mensual_demanda] * len(PERIODOS_PRONOSTICO),
-        name="Demanda esperada (mensual equiv.)", marker_color=COLOR_OK, opacity=0.7,
+        name="Ventas esperadas (por mes)", marker_color=COLOR_OK, opacity=0.7,
     ))
     fig.add_trace(go.Scatter(
         x=PERIODOS_PRONOSTICO, y=[mensual_stock] * len(PERIODOS_PRONOSTICO), mode="lines",
-        name="Stock objetivo (mensual equiv.)", line=dict(color=COLOR_ALERTA, dash="dash", width=2),
+        name="Stock recomendado (por mes)", line=dict(color=COLOR_ALERTA, dash="dash", width=2),
     ))
     return _estilo(
-        fig, title=f"{fila['producto']}: histórico y pronóstico Q4",
+        fig, title=f"{fila['producto']}: ventas pasadas y pronóstico oct–dic",
         xaxis_title="Mes", yaxis_title="Unidades",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )

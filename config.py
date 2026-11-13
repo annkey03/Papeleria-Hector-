@@ -16,6 +16,8 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 RUTA_DATASET = Path(os.environ.get("DATASET_PATH", BASE_DIR / "dataset.xlsx"))
 HOJA_DATASET = "Dataset"
+# Ventas que el vendedor sube desde el dashboard (se suman al dataset base)
+RUTA_CARGAS = Path(os.environ.get("VENTAS_CARGADAS_PATH", BASE_DIR / "data" / "ventas_cargadas.csv"))
 
 # ------------------------------------------------------------------
 # Ventana de análisis definida en el informe del proyecto
