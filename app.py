@@ -20,11 +20,11 @@ import charts
 import data_loader as dl
 import forecast as fc
 from config import (
-    COLOR_AVISO, COLOR_OK, COLOR_PRIMARIO, ESCENARIOS, FECHA_FIN, FECHA_INICIO,
+    COLOR_AVISO, COLOR_OK, COLOR_PRIMARIO, ESCENARIOS, FECHA_INICIO,
     PROVEEDOR_SIN_REGISTRO, PROVEEDOR_SUGERIDO,
 )
 
-st.set_page_config(page_title="Dashboard Predictivo | Papelería Héctor",
+st.set_page_config(page_title="Pronóstico de ventas | Papelería Héctor",
                    page_icon="📊", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
@@ -95,36 +95,49 @@ if "escenario" not in st.session_state:
 
 with st.sidebar:
     st.markdown("### 🏛️ Papelería Héctor")
-    st.caption("Gestión predictiva de inventarios")
+    st.caption("Control de inventario y pronóstico de ventas")
     st.markdown("---")
 
-    st.subheader("🎯 Escenario de prueba")
-    st.selectbox("Escenario predefinido", list(ESCENARIOS), key="escenario",
+    st.subheader("🎯 Tipo de temporada")
+    st.selectbox("Escenario", list(ESCENARIOS), key="escenario",
                  on_change=aplicar_escenario,
-                 help="Carga valores para las variables predictoras. Puedes ajustarlos después.")
+                 help="Carga valores sugeridos para cada tipo de temporada. Puedes ajustarlos después.")
 
-    st.subheader("🔧 Variables predictoras")
-    st.slider("Factor de demanda", 0.5, 1.5, step=0.05, key="factor",
-              help="0.8 = demanda baja · 1.0 = tendencia histórica · 1.25 = pico de temporada")
-    st.select_slider("Nivel de servicio objetivo", options=[0.80, 0.85, 0.90, 0.95, 0.99],
-                     key="nivel", format_func=lambda x: f"{x:.0%}")
-    st.selectbox("Ventana de la media móvil (meses)", [3, 6, 9, 12], key="ventana")
+    st.subheader("🔧 Ajustes del pronóstico")
+    st.slider("Ritmo de ventas esperado", 0.5, 1.5, step=0.05, key="factor",
+              help="0.8 = ventas bajas · 1.0 = igual que lo habitual · 1.25 = temporada alta")
+    st.select_slider("Probabilidad de tener producto disponible", options=[0.80, 0.85, 0.90, 0.95, 0.99],
+                     key="nivel", format_func=lambda x: f"{x:.0%}",
+                     help="Qué tan seguro quieres estar de no quedarte sin producto. "
+                          "A mayor porcentaje, más stock en bodega y más inversión.")
+    st.selectbox("Meses de historia a considerar", [3, 6, 9, 12], key="ventana",
+                 help="Cuántos de los últimos meses se usan para estimar las ventas futuras.")
     st.checkbox("Limitar presupuesto de compra", key="limitar")
     if st.session_state["limitar"]:
         st.slider("Presupuesto de compra (COP)", 100_000, 2_000_000, step=50_000, key="presupuesto")
 
     st.markdown("---")
-    st.subheader("📅 Periodo histórico del modelo")
-    f_min, f_max = dt.date.fromisoformat(FECHA_INICIO), dt.date.fromisoformat(FECHA_FIN)
-    rango = st.date_input("Rango de fechas", value=(f_min, f_max), min_value=f_min, max_value=f_max)
+    st.subheader("📅 Periodo de ventas a considerar")
+    f_min = dt.date.fromisoformat(FECHA_INICIO)
+    f_sugerida = dl.ultimo_mes_completo(ventas)
+    f_max = max(ventas["fecha_venta"].max().date(), f_sugerida)
+    rango = st.date_input("Rango de fechas", value=(f_min, f_sugerida), min_value=f_min, max_value=f_max,
+                          help="Por defecto se usan meses completos. Si incluyes un mes a medias, "
+                               "el promedio de ventas puede quedar más bajo de lo real.")
 
     st.subheader("🏷️ Categorías y productos")
     categoria = st.selectbox("Categoría", ["Todas"] + list(catalogo["categoria"].unique()))
     opciones = catalogo if categoria == "Todas" else catalogo[catalogo["categoria"] == categoria]
-    seleccion = st.multiselect("Productos estratégicos", opciones["producto"].tolist(),
+    seleccion = st.multiselect("Productos", opciones["producto"].tolist(),
                                default=opciones["producto"].tolist())
     st.markdown("---")
-    st.caption("Grupo 01 · Business Analytics 802 · Docente: Ivon Forero · Universidad de Cundinamarca")
+    with st.expander("ℹ️ Acerca de este tablero"):
+        st.markdown(
+            "**¿Cómo se calcula?** Se promedian las ventas de los últimos meses para estimar el trimestre "
+            "y se simulan miles de trimestres posibles con tu historial para saber cuánto stock te "
+            "cubre con la probabilidad elegida.\n\n"
+            "Proyecto de aula · Business Analytics 802 · Universidad de Cundinamarca · Grupo 01 · "
+            "Docente: Ivon Forero.")
 
 if not (isinstance(rango, tuple) and len(rango) == 2):
     st.info("Selecciona fecha inicial y final para continuar.")
@@ -147,12 +160,13 @@ if len(ventas_m) < 3:
 plan_total = modelo(ventas_m, catalogo, factor, nivel, ventana)
 plan = plan_total[plan_total["producto"].isin(seleccion)].reset_index(drop=True)
 
-st.title("📦 Dashboard Predictivo de Demanda e Inventario Q4 2026")
-st.caption(f"¿Cuántas unidades venderá cada producto estratégico entre octubre y diciembre de 2026 y "
-           f"cuántas debe haber disponibles con un nivel de servicio del {nivel:.0%}? "
-           f"· Media móvil {ventana}M + bootstrap P{nivel:.0%}")
+st.title("📦 Pronóstico de ventas e inventario · Octubre–Diciembre 2026")
+st.caption(f"Cuántas unidades se espera vender de cada producto y cuántas conviene tener en bodega "
+           f"para cubrir la demanda con una probabilidad del {nivel:.0%}. "
+           f"Basado en las ventas de los últimos {ventana} meses.")
 
-tab1, tab2, tab3 = st.tabs(["📊 Resumen Predictivo Q4", "🔎 Análisis Drill-Down", "📋 Plan Operativo de Compras"])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Resumen del trimestre", "🔎 Detalle de ventas",
+                                    "📋 Qué comprar", "📤 Cargar ventas"])
 
 
 def tarjeta(titulo, valor, nota, color):
@@ -168,30 +182,32 @@ def tarjeta(titulo, valor, nota, color):
 with tab1:
     cob = cobertura(ventas_m, nivel)
     k1, k2, k3, k4 = st.columns(4)
-    k1.markdown(tarjeta("Demanda esperada Q4", f"{plan['demanda_q4'].sum():.1f} un.",
-                        f"Media móvil {ventana}M × {factor:.2f}", COLOR_PRIMARIO), unsafe_allow_html=True)
-    k2.markdown(tarjeta("Inversión en inventario objetivo", f"${plan['inversion_inventario'].sum():,.0f}",
-                        f"{plan['stock_objetivo'].sum()} unidades de stock", "#4F46E5"), unsafe_allow_html=True)
-    k3.markdown(tarjeta("Utilidad bruta proyectada", f"${plan['utilidad_proyectada'].sum():,.0f}",
-                        "Demanda × margen unitario", COLOR_OK), unsafe_allow_html=True)
-    k4.markdown(tarjeta("Cobertura histórica (backtesting)", f"{cob:.1%}",
-                        f"Objetivo: {nivel:.0%}", COLOR_AVISO), unsafe_allow_html=True)
+    k1.markdown(tarjeta("Ventas esperadas (oct–dic)", f"{plan['demanda_q4'].sum():.1f} un.",
+                        f"Últimos {ventana} meses · ajuste ×{factor:.2f}", COLOR_PRIMARIO), unsafe_allow_html=True)
+    k2.markdown(tarjeta("Inversión en inventario recomendado", f"${plan['inversion_inventario'].sum():,.0f}",
+                        f"{plan['stock_objetivo'].sum()} unidades en bodega", "#4F46E5"), unsafe_allow_html=True)
+    k3.markdown(tarjeta("Ganancia bruta estimada", f"${plan['utilidad_proyectada'].sum():,.0f}",
+                        "Ventas esperadas × ganancia por unidad", COLOR_OK), unsafe_allow_html=True)
+    k4.markdown(tarjeta("Aciertos en trimestres anteriores", f"{cob:.1%}",
+                        f"Meta: {nivel:.0%} de los trimestres cubiertos", COLOR_AVISO), unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("Demanda esperada vs. stock objetivo")
+        st.subheader("Ventas esperadas vs. stock recomendado")
         st.plotly_chart(charts.demanda_vs_stock(plan), width='stretch')
     with c2:
-        st.subheader("Capital inmovilizado por producto")
+        st.subheader("Dinero invertido en inventario, por producto")
         st.plotly_chart(charts.distribucion_inversion(plan), width='stretch')
 
-    st.subheader("Respuesta a la pregunta de predicción")
+    st.subheader("Pronóstico por producto")
+    st.caption("**Stock recomendado**: unidades que conviene tener en bodega para el trimestre. "
+               "**Pedir cuando queden**: si la existencia baja de esa cantidad, es momento de reponer.")
     st.dataframe(
         plan[["producto", "categoria", "demanda_q4", "stock_objetivo", "punto_reorden"]].rename(columns={
-            "producto": "Producto", "categoria": "Categoría", "demanda_q4": "Demanda Q4 (un.)",
-            "stock_objetivo": "Stock objetivo", "punto_reorden": "Punto de reorden"}
-        ).style.format({"Demanda Q4 (un.)": "{:.1f}"}),
+            "producto": "Producto", "categoria": "Categoría", "demanda_q4": "Ventas esperadas (un.)",
+            "stock_objetivo": "Stock recomendado", "punto_reorden": "Pedir cuando queden (un.)"}
+        ).style.format({"Ventas esperadas (un.)": "{:.1f}"}),
         width='stretch', hide_index=True)
 
 # ------------------------------------------------------------------
@@ -225,9 +241,9 @@ with tab2:
 # Pestaña 3: plan operativo de compras
 # ------------------------------------------------------------------
 with tab3:
-    st.subheader("Plan operativo de compras y alertas de inventario")
+    st.subheader("Qué comprar y alertas de inventario")
     st.caption("Ingresa la existencia real en bodega de cada producto para calcular las compras.")
-    with st.expander("📦 Existencias en bodega (simulador por producto)", expanded=True):
+    with st.expander("📦 Inventario actual en bodega", expanded=True):
         cols = st.columns(len(plan))
         existencias = {}
         for col, (_, fila) in zip(cols, plan.iterrows()):
@@ -238,8 +254,8 @@ with tab3:
     compras = fc.plan_de_compras(plan, existencias, presupuesto)
     icono = {"PEDIR": "🔴 PEDIR", "VIGILAR": "🟡 VIGILAR", "SUFICIENTE": "🟢 SUFICIENTE"}
     tabla = pd.DataFrame({
-        "Producto": compras["producto"], "Stock objetivo": compras["stock_objetivo"],
-        "Punto de reorden": compras["punto_reorden"], "Existencia": compras["existencia"],
+        "Producto": compras["producto"], "Stock recomendado": compras["stock_objetivo"],
+        "Pedir cuando queden": compras["punto_reorden"], "Existencia": compras["existencia"],
         "Estado": compras["estado"].map(icono), "Comprar (un.)": compras["a_comprar"],
         "Sin cubrir (un.)": compras["sin_cubrir"], "Inversión (COP)": compras["inversion_compra"],
         "Proveedor": compras["proveedor"],
@@ -261,5 +277,61 @@ with tab3:
         st.warning(f"⚠️ {len(sin_prov)} productos no tienen proveedor registrado: {', '.join(sin_prov)}. "
                    f"Se sugiere formalizar la cadena de suministro (por ejemplo, con {PROVEEDOR_SUGERIDO}).")
 
+# ------------------------------------------------------------------
+# Pestaña 4: carga de ventas por el vendedor
+# ------------------------------------------------------------------
+with tab4:
+    st.subheader("Cargar ventas nuevas")
+    st.caption("Sube tus ventas recientes y el pronóstico se actualiza solo con la información más reciente.")
+    if st.session_state.get("msg_carga"):
+        st.success(st.session_state.pop("msg_carga"))
+
+    st.markdown("**1. Descarga la plantilla** y escribe una fila por cada venta (fecha, producto y cantidad).")
+    st.download_button("⬇️ Descargar plantilla de Excel", data=dl.plantilla_xlsx(catalogo),
+                       file_name="plantilla_ventas.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    st.markdown("**2. Sube el archivo** con tus ventas (Excel o CSV).")
+    subido = st.file_uploader("Archivo de ventas", type=["xlsx", "csv"], label_visibility="collapsed",
+                              key=f"archivo_ventas_{st.session_state.get('n_cargas', 0)}")
+    if subido is not None:
+        contenido = subido.getvalue()
+        lote = dl.huella(contenido)
+        nuevas, errores, avisos = dl.validar_carga(contenido, subido.name, catalogo)
+        for e in errores:
+            st.error(e)
+        for a in avisos:
+            st.warning(a)
+        if lote in set(dl.lotes_cargados()["lote"]):
+            st.info("Este archivo ya se cargó antes; no se puede subir dos veces.")
+        elif nuevas is not None and not errores:
+            st.markdown(f"**3. Revisa y confirma:** {len(nuevas)} ventas · "
+                        f"{int(nuevas['cantidad_vendida'].sum())} unidades · "
+                        f"del {nuevas['fecha_venta'].min():%d/%m/%Y} al {nuevas['fecha_venta'].max():%d/%m/%Y}")
+            st.dataframe(nuevas.rename(columns={"fecha_venta": "Fecha", "producto": "Producto",
+                                                "cantidad_vendida": "Cantidad"})[["Fecha", "Producto", "Cantidad"]]
+                         .style.format({"Fecha": "{:%d/%m/%Y}"}), width='stretch', hide_index=True)
+            if st.button("✅ Confirmar y actualizar pronóstico", type="primary"):
+                dl.guardar_carga(nuevas, catalogo, lote, subido.name)
+                st.cache_data.clear()
+                st.session_state["n_cargas"] = st.session_state.get("n_cargas", 0) + 1
+                st.session_state["msg_carga"] = f"Se cargaron {len(nuevas)} ventas. El pronóstico ya está actualizado."
+                st.rerun()
+
+    historial = dl.lotes_cargados()
+    if len(historial):
+        st.markdown("---")
+        st.markdown("**Cargas realizadas**")
+        for _, fila in historial.iterrows():
+            c_a, c_b = st.columns([4, 1])
+            c_a.write(f"📄 {fila['archivo']} · {fila['filas']} ventas "
+                      f"({fila['desde']:%d/%m/%Y} – {fila['hasta']:%d/%m/%Y}) · subido el {fila['cargado_en']}")
+            if c_b.button("Deshacer", key=f"del_{fila['lote']}"):
+                dl.eliminar_lote(fila["lote"])
+                st.cache_data.clear()
+                st.session_state["msg_carga"] = f"Se deshizo la carga de {fila['archivo']}."
+                st.rerun()
+
 st.markdown("---")
-st.caption("Universidad de Cundinamarca · Facultad de Ingeniería · Business Analytics 2026")
+st.caption(f"Papelería y Miscelánea Héctor · Mosquera, Cundinamarca · "
+           f"Ventas registradas hasta el {ventas['fecha_venta'].max():%d/%m/%Y}")

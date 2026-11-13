@@ -58,10 +58,18 @@ Generados con `python tabla_escenarios.py` (los mismos que carga el selector del
 
 ## 🖥️ Estructura del dashboard
 
-1. **📊 Resumen Predictivo Q4** — KPIs, demanda vs. stock objetivo, capital por producto y tabla con la respuesta a la pregunta.
-2. **🔎 Análisis Drill-Down** — tres niveles: categorías → productos → producto individual (histórico + pronóstico).
-3. **📋 Plan Operativo de Compras** — simulador de existencias, semáforo (🔴 PEDIR · 🟡 VIGILAR · 🟢 SUFICIENTE),
+1. **📊 Resumen del trimestre** — KPIs, ventas esperadas vs. stock recomendado, dinero invertido por producto y tabla de pronóstico.
+2. **🔎 Detalle de ventas** — tres niveles: categorías → productos → producto individual (histórico + pronóstico).
+3. **📋 Qué comprar** — simulador de existencias, semáforo (🔴 PEDIR · 🟡 VIGILAR · 🟢 SUFICIENTE),
    compra con presupuesto y alerta de productos sin proveedor.
+
+4. **📤 Cargar ventas** — el vendedor descarga una plantilla de Excel (fecha, producto, cantidad), la sube, revisa una
+   vista previa con validaciones y confirma; el pronóstico se recalcula con las ventas nuevas. Las cargas se guardan en
+   `data/ventas_cargadas.csv` (se suman a `dataset.xlsx`, que no se modifica), no se puede subir dos veces el mismo
+   archivo y cada carga se puede deshacer.
+
+> **Nota de despliegue:** en Streamlit Community Cloud el disco es temporal; si la app se reinicia, las cargas se
+> pierden. Para uso real conviene guardarlas en una base de datos o en Google Sheets.
 
 ### Interacciones disponibles
 
